@@ -176,8 +176,8 @@ module DE2_TOP (
     assign GPIO_1 = 36'hzzzzzzzzz;
 
     // Disable audio codec
-    // assign AUD_DACDAT = 1'b0;
-    // assign AUD_XCK    = 1'b0;
+    assign AUD_DACDAT = 1'b0;
+    assign AUD_XCK    = 1'b0;
 
     // Disable DRAM
     assign DRAM_ADDR  = 12'h0;
@@ -243,22 +243,9 @@ module DE2_TOP (
     assign SRAM_UB_N = 1'b1;
     assign SRAM_WE_N = 1'b1;
 
-    // Disable VGA
-    /*
-    assign VGA_CLK   = 1'b0;
-    assign VGA_BLANK = 1'b0;
-    assign VGA_SYNC  = 1'b0;
-    assign VGA_HS    = 1'b0;
-    assign VGA_VS    = 1'b0;
-    assign VGA_R     = 10'h0;
-    assign VGA_G     = 10'h0;
-    assign VGA_B     = 10'h0;
-    */
-
     // Disable all other peripherals
     // assign I2C_SCLK = 1'b0;
     assign IRDA_TXD = 1'b0;
-    // assign TD_RESET = 1'b0;
     assign TDO = 1'b0;
     assign UART_TXD = 1'b0;
    
@@ -316,27 +303,28 @@ module DE2_TOP (
     ///////////////////////////////////////////////////////////////////////////
     // Cellular Automaton state machine variables                            //
     ///////////////////////////////////////////////////////////////////////////
-    wire RESET;
-    wire state_bit;      // current data from m4k to state machine
-    wire mem_bit;        // current data from m4k to VGA
-    reg [4:0] STATE;     // state machine
-    reg [4:0] RETURN;    // Return to this state
+    wire       RESET;
+    wire       state_bit; // current data from m4k to state machine
+    wire       mem_bit;   // current data from m4k to VGA
+    reg [4:0]  STATE;     // state machine
+    reg [4:0]  RETURN;    // Return to this state
 
-    reg        disp_bit; // registered data from m4k to VGA
+    reg         disp_bit; // registered data from m4k to VGA
     
-    reg        WREN;       // write enable for a
-    reg [18:0] ADDR; // for a
-    reg        DATA; // for a
+    reg         WREN;     // write enable for a
+    reg [18:0]  ADDR;     // for a
+    reg         DATA;     // for a
     
-    reg  [9:0] CA_X;
-    reg  [8:0] CA_Y;
-    reg  [2:0] CA_INDEX;
-    reg  [7:0] CA_RULE;
-    reg        MODE;
-    reg  [15:0] SEED;
+    reg  [9:0]  CA_X;     //
+    reg  [8:0]  CA_Y;     //
+    reg  [2:0]  CA_INDEX; //
+    reg  [7:0]  CA_RULE;  //
+    reg         MODE;     //
+ 
     
-    reg  [15:0] LFSR; // linear feedback shift register
-    wire        LFSR_LO; // LSB of shift register
+    reg  [15:0] LFSR;     // Linear feedback shift register
+    reg  [15:0] SEED;     // random seed for LFSR
+    wire        LFSR_LO;  // Least significant bit of shift register
     
     reg CONTINUE_HOLD;
     
@@ -358,14 +346,14 @@ module DE2_TOP (
     assign  mVGA_G = {10{disp_bit}} ;
     assign  mVGA_B = {10{disp_bit}} ;
 
-    // DLA state machine
+    // Reset and continue keys
     assign RESET    = ~KEY[2];
     assign CONTINUE = ~KEY[3];
     
-    // Linear feedback shift register
+    // Connect feedback loop of shift register
     assign LFSR_LO = LFSR[15] ^ LFSR[14];
 
-    //state names
+    // State names
     parameter INIT   = 5'd0,
               DRAW_1 = 5'd1,
               DRAW_2 = 5'd2,
@@ -389,17 +377,17 @@ module DE2_TOP (
         disp_bit <= mem_bit;
     end
 
-    always @ (posedge VGA_CTRL_CLK) //VGA_CTRL_CLK
+    always @ (posedge VGA_CTRL_CLK) // VGA_CTRL_CLK
     begin
  
         if ( RESET )  // Sync reset assumes KEY3 is held down 1/60 second
         begin
             // Clear the screen
             ADDR <= {Coord_X[9:0], Coord_Y[8:0]} ; // [17:0]
-            WREN <= 1'b1;        //write some memory
-            DATA <= 1'b0;      //write all zeros (black) 
-            CA_RULE <= SW[7:0]; // set CA rule at reset
-            MODE <= SW[17]; // set seed/random mode at reset
+            WREN <= 1'b1; // write some memory
+            DATA <= 1'b0; // write all zeros (black) 
+            CA_RULE <= SW[7:0]; // set CA rule
+            MODE <= SW[17]; // set seed/random mode
             LFSR <= SEED; // initialize linear feedback shift register
 
             if ( ~MODE )    
