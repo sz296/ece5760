@@ -253,7 +253,7 @@ module DE2_TOP (
     wire AUD_CTRL_CLK;
     wire DLY_RST;
 
-    assign TD_RESET    = 1'b1;         // Allow 27 MHz
+    assign TD_RESET    = 1'b1; // Allow 27 MHz
     assign AUD_ADCLRCK = AUD_DACLRCK;
     assign AUD_XCK     = AUD_CTRL_CLK;
 
@@ -303,30 +303,30 @@ module DE2_TOP (
     ///////////////////////////////////////////////////////////////////////////
     // Cellular Automaton state machine variables                            //
     ///////////////////////////////////////////////////////////////////////////
-    wire       RESET;
-    wire       state_bit; // current data from m4k to state machine
-    wire       mem_bit;   // current data from m4k to VGA
-    reg [4:0]  STATE;     // state machine
-    reg [4:0]  RETURN;    // Return to this state
+    wire        RESET;
+    wire        state_bit;     // Current data from m4k to state machine
+    wire        mem_bit;       // Current data from m4k to VGA
+    reg [4:0]   STATE;         // State machine
+    reg [4:0]   RETURN;        // Return to this state
 
-    reg         disp_bit; // registered data from m4k to VGA
+    reg         disp_bit;      // Registered data from m4k to VGA
     
-    reg         WREN;     // write enable for a
-    reg [18:0]  ADDR;     // for a
-    reg         DATA;     // for a
+    reg         WREN;          // Write enable for a
+    reg [18:0]  ADDR;          // for a
+    reg         DATA;          // for a
     
-    reg  [9:0]  CA_X;     //
-    reg  [8:0]  CA_Y;     //
-    reg  [2:0]  CA_INDEX; //
-    reg  [7:0]  CA_RULE;  //
-    reg         MODE;     //
+    reg  [9:0]  CA_X;          // x-position of cell to be generated
+    reg  [8:0]  CA_Y;          // y-position of cell to be generated
+    reg  [2:0]  CA_INDEX;      // Index into 3-bit rule
+    reg  [7:0]  CA_RULE;       // 8-bit rule read from switches
+    reg         MODE;          // Intialize to one cell or a random vector
  
     
-    reg  [15:0] LFSR;     // Linear feedback shift register
-    reg  [15:0] SEED;     // random seed for LFSR
-    wire        LFSR_LO;  // Least significant bit of shift register
+    reg  [15:0] LFSR;          // Linear feedback shift register
+    reg  [15:0] SEED;          // Random seed for LFSR
+    wire        LFSR_LO;       // Least significant bit of shift register
     
-    reg CONTINUE_HOLD;
+    reg         CONTINUE_HOLD; // flag set when continue key is pressed
     
     vga_buffer display(
         .address_a (ADDR) , 
@@ -346,7 +346,7 @@ module DE2_TOP (
     assign  mVGA_G = {10{disp_bit}} ;
     assign  mVGA_B = {10{disp_bit}} ;
 
-    // Reset and continue keys
+    // Connect reset and continue keys
     assign RESET    = ~KEY[2];
     assign CONTINUE = ~KEY[3];
     
@@ -383,29 +383,34 @@ module DE2_TOP (
         if ( RESET )  // Sync reset assumes KEY3 is held down 1/60 second
         begin
             // Clear the screen
-            ADDR <= {Coord_X[9:0], Coord_Y[8:0]} ; // [17:0]
-            WREN <= 1'b1; // write some memory
-            DATA <= 1'b0; // write all zeros (black) 
-            CA_RULE <= SW[7:0]; // set CA rule
-            MODE <= SW[17]; // set seed/random mode
-            LFSR <= SEED; // initialize linear feedback shift register
+            ADDR <= {Coord_X[9:0], Coord_Y[8:0]}; // [17:0]
+            WREN <= 1'b1;                         // Write some memory
+            DATA <= 1'b0;                         // Write all zeros (black) 
+            CA_RULE <= SW[7:0];                   // Set CA rule
+            MODE <= SW[17];                       // Set mode: initialize with one cell or a random vector
+            LFSR <= SEED;                         // Initialize linear feedback shift register
 
             if ( ~MODE )    
             begin
-                STATE <= INIT; //first state in regular state machine 
+                STATE <= INIT;                    // Write one cell to top center of screen
             end
             else
             begin
-                STATE <= RAND_1;
+                STATE <= RAND_1;                  // Write a random vector to top of screen
             end
             
         end
  
 
-        else 
+        else
+        
+        //
+        // Finite state machine: computes CA and writing to VGA
+        //
         begin
             case( STATE )
-                // FSM
+            
+                // Intialize state to a single cell centered at top of screen
                 INIT:
                 begin
                     WREN <= 1'b0;
@@ -420,6 +425,7 @@ module DE2_TOP (
                     STATE <= DRAW_1;
                 end
                 
+                // Set write enable
                 DRAW_1:
                 begin
                     WREN <= 1'b1;
@@ -427,6 +433,7 @@ module DE2_TOP (
                     STATE <= DRAW_2;
                 end
                 
+                // Clear write enable
                 DRAW_2:
                 begin
                     WREN <= 1'b0;
@@ -434,6 +441,7 @@ module DE2_TOP (
                     STATE <= RETURN;
                 end
                 
+                // Read upper left cell
                 CA_1:
                 begin
                     WREN <= 1'b0;
@@ -443,6 +451,7 @@ module DE2_TOP (
                     STATE <= CA_2;
                 end
                 
+                // Read cell directly above
                 CA_2:
                 begin
                     WREN <= 1'b0;
@@ -451,6 +460,7 @@ module DE2_TOP (
                     STATE <= CA_3;
                 end
                 
+                // Read upper right cell; Compute index into rule using result from upper left cell
                 CA_3:
                 begin
                     WREN <= 1'b0;
@@ -460,6 +470,7 @@ module DE2_TOP (
                     STATE <= CA_4;
                 end
                 
+                // Compute index into rule using result from cell directly above
                 CA_4:
                 begin
                     WREN <= 1'b0;
@@ -468,6 +479,7 @@ module DE2_TOP (
                     STATE <= CA_5;
                 end
                 
+                // Compute index into rule using result from upper right cell
                 CA_5:
                 begin
                     WREN <= 1'b0;
@@ -476,19 +488,21 @@ module DE2_TOP (
                     STATE <= CA_6;
                 end
                 
+                // Write cell to VGA
                 CA_6:
                 begin
                     WREN <= 1'b0;
                     DATA <= CA_RULE[CA_INDEX];
                     ADDR <= {CA_X, CA_Y};
                     
-                    
+                    // If end of screen, wait until signaled to continue by key press
                     if (CA_X == 10'd639 && CA_Y == 9'd479)
                     begin 
                         RETURN <= WAIT;
                         STATE <= DRAW_1;
                     end
                     
+                    // Otherwise, if end of row, continue to first cell of next row
                     else if (CA_X == 10'd639)
                     begin
                         CA_X <= 10'd1;
@@ -498,6 +512,7 @@ module DE2_TOP (
                         STATE <= DRAW_1;
                     end
                     
+                    // Otherwise, continue generating current row
                     else
                     begin
                         CA_X <= CA_X + 1;
@@ -508,12 +523,15 @@ module DE2_TOP (
                      
                 end
       
+                // Wait until signaled to continue by key press
                 WAIT:
                 begin
                     WREN <= 1'b0;
                     
+                    // Modify LFSR to add randomness
                     SEED <= SEED + 16'd1;
         
+                    // If continue key pressed, copy bottom line to top of screen
                     if ( CONTINUE && ~CONTINUE_HOLD )
                     begin
                         CA_X <= 10'd1;
@@ -522,6 +540,7 @@ module DE2_TOP (
                         STATE <= CONT_1;
                     end
       
+                    // Otherwise, if key has been released, clear flag and wait
                     else if ( ~CONTINUE )
                     begin
                         CONTINUE_HOLD <= 1'b0;
@@ -529,12 +548,14 @@ module DE2_TOP (
                         STATE <= WAIT;
                     end
                     
+                    // Otherwise, key is currently still pressed; wait for key to be released
                     else
                     begin
                         STATE <= WAIT;
                     end
                 end
       
+                // Read cell at bottom of screen
                 CONT_1:
                 begin
                     WREN <= 1'b0;
@@ -542,20 +563,23 @@ module DE2_TOP (
                   
                     STATE <= CONT_2;
                 end
-                  
+                
+                // Wait one cycle
                 CONT_2:
                 begin
                     WREN <= 1'b0;
                   
                     STATE <= CONT_3;
                 end
-                  
+                
+                // Copy cell to top of screen
                 CONT_3:
                 begin
                     WREN <= 1'b0;
                     ADDR <= {CA_X, 9'd1};
                     DATA <= state_bit;
                   
+                    // If end of row, move onto next row and continue generating rest of screen
                     if (CA_X == 10'd639)
                     begin
                         CA_X <= 10'd1;
@@ -563,6 +587,7 @@ module DE2_TOP (
                         RETURN <= CA_1;
                     end
                     
+                    // Otherwise, continue copying bottom line to top of screen
                     else
                     begin
                         CA_X <= CA_X + 10'd1;
@@ -572,6 +597,7 @@ module DE2_TOP (
                     STATE <= DRAW_1;
                 end
                 
+                // Write output of LSFR to first cell top row
                 RAND_1:
                 begin
                     WREN <= 1'b0;
@@ -585,6 +611,7 @@ module DE2_TOP (
                     STATE <= DRAW_1;
                 end
                 
+                // Continue writing output of LSFR to top row
                 RAND_2:
                 begin
                     WREN <= 1'b0;
@@ -594,11 +621,14 @@ module DE2_TOP (
                     
                     CA_X <= CA_X + 10'd1; // update x-position
                     
+                    // If end of row, then move onto next row and continue generating rest of screen
                     if ( CA_X == 10'd639 )
                     begin
                         CA_Y <= 10'd2;
                         RETURN <= CA_1;
                     end
+                    
+                    // Otherwise, continue writing random vector to top row
                     else
                     begin
                         RETURN <= RAND_2;
