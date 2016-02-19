@@ -1,14 +1,14 @@
 // --------------------------------------------------------------------
 // --------------------------------------------------------------------
 //
-// Major Functions: Diffusion limited aggregation 
-//  state is in m4k blocks
-// --------------------------------------------------------------------
-//
-// Revision History :
-// --------------------------------------------------------------------
-// Bruce R Land, Cornell University, Oct 2009
+// ece5760 Lab1: Elementary cellular automaton
+// Scott Zhao (sz296)
+// Andre Heil (avh34)
+// Spring 2016
+// 
+// Based on code by Bruce R Land, Cornell University, Oct 2009
 // Improved top module written by Adam Shapiro Oct 2009
+// --------------------------------------------------------------------
 // --------------------------------------------------------------------
 
 module DE2_TOP (
